@@ -17,6 +17,11 @@ class Coroutine
     protected static bool $enableReportException = true;
 
     /**
+     * @var array<callable>
+     */
+    private static array $afterCreatedCallbacks = [];
+
+    /**
      * Returns the current coroutine ID.
      *
      * Returns -1 when running in non-coroutine context.
@@ -24,6 +29,22 @@ class Coroutine
     public static function id(): int
     {
         return Co::id();
+    }
+
+    /**
+     * Register a callback to be called after a coroutine is created.
+     */
+    public static function afterCreated(callable $callback): void
+    {
+        static::$afterCreatedCallbacks[] = $callback;
+    }
+
+    /**
+     * Flush after created callbacks.
+     */
+    public static function flushAfterCreated(): void
+    {
+        static::$afterCreatedCallbacks = [];
     }
 
     /**
@@ -81,6 +102,14 @@ class Coroutine
     {
         $coroutine = Co::create(static function () use ($callable) {
             try {
+                // Execute afterCreated callbacks.
+                foreach (static::$afterCreatedCallbacks as $callback) {
+                    try {
+                        $callback();
+                    } catch (Throwable $throwable) {
+                        static::printLog($throwable);
+                    }
+                }
                 $callable();
             } catch (Throwable $throwable) {
                 static::printLog($throwable);
